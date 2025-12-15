@@ -1,220 +1,263 @@
-# 🔧 Detecção de Falhas Mecânicas — Projeto de Machine Learning
+# 📋 Relatório Técnico Detalhado – Detecção de Falhas Mecânicas (MAFAULDA)
 
-Projeto desenvolvido para um **Desafio Técnico de Machine Learning**, implementando uma solução **end-to-end** para detecção de falhas mecânicas utilizando o dataset **MAFAULDA (Machinery Fault Simulator)**.
-
----
-
-##  Visão Geral
-
-**Objetivo:** classificar sinais de vibração em:
-
-*  **Operação Normal**
-*  **Desbalanceamento Mecânico**
-
-O projeto aborda desafios reais de **dados industriais**, como ruído, outliers e **desbalanceamento severo de classes**, aplicando técnicas de pré-processamento, balanceamento e modelagem.
+**Autor:** Carlos Henrique Rodrigues P.
 
 ---
 
-##  Dataset
+## 📌 Introdução
 
-**MAFAULDA – Machinery Fault Simulator**
+Este relatório foi elaborado para **explicar de forma clara, detalhada e justificada** todas as decisões técnicas implementadas no notebook do *Desafio Técnico – Detecção de Falhas Mecânicas*.
 
-*  **382 arquivos** de séries temporais multivariadas
-*  **Classes:**
+O objetivo do trabalho é classificar automaticamente sinais de vibração do dataset **MAFAULDA**, distinguindo entre:
 
-  * Normal: **49 arquivos (12.8%)**
-  * Desbalanceamento: **333 arquivos (87.2%)**
-*  **Sensores:** múltiplos canais de vibração
+* **Classe 0 – Operação Normal**
+* **Classe 1 – Desbalanceamento Mecânico**
 
-> ⚠️ Dataset altamente desbalanceado, refletindo cenários industriais reais.
+Todo o pipeline foi desenvolvido com foco em **clareza, reprodutibilidade e alinhamento com práticas industriais**.
 
 ---
 
-## 🏗️ Arquitetura da Solução
+## 🎯 1. Contexto do Problema e Objetivo
 
-```text
-📁 Dados Brutos
-   →  Pré-processamento
-      →  Extração de Features
-         →  Modelagem
-            →  Avaliação
+### 1.1 Dataset MAFAULDA
+
+O dataset MAFAULDA é composto por sinais de vibração obtidos a partir de um **simulador de falhas mecânicas (MFS – Machinery Fault Simulator)**.
+
+**Características principais:**
+
+* Sinais experimentais reais (não sintéticos)
+* Ambiente controlado de laboratório
+* Arquivos CSV independentes
+* Frequência de amostragem: **1000 Hz**
+* Múltiplos canais por arquivo (foi utilizado **apenas um canal**, propositalmente)
+
+Essa escolha torna o problema mais realista, pois em aplicações industriais muitas vezes **nem todos os sensores estão disponíveis**.
+
+### 1.2 Objetivo do Projeto
+
+Desenvolver um classificador binário capaz de identificar automaticamente o estado mecânico do sistema a partir de sinais de vibração, seguindo três princípios:
+
+1. Pipeline simples e interpretável
+2. Decisões técnicas justificadas fisicamente
+3. Avaliação justa e reproduzível
+
+---
+
+## 🧩 2. Estratégia Global da Solução
+
+O pipeline segue a abordagem clássica de *Machine Learning* aplicada a sinais temporais:
+
+```
+Carregamento → Pré-processamento → Janelamento → Extração de Features → Modelagem → Avaliação
 ```
 
----
+**Filosofia adotada:**
 
-##  Pré-processamento
-
-Duas estratégias foram implementadas e comparadas:
-
-| Técnica                     | Justificativa                                   | Impacto                            |
-| --------------------------- | ----------------------------------------------- | ---------------------------------- |
-| **RobustScaler**            | Robusto a outliers comuns em sinais de sensores | Reduz influência de picos anômalos |
-| **StandardScaler + Filtro** | Remove ruído e padroniza amplitude              | Melhora a qualidade do sinal       |
+* Começar simples e evoluir com base nos dados
+* Priorizar métodos explicáveis (importante em contexto industrial)
+* Evitar soluções excessivamente complexas para um dataset limitado
 
 ---
 
-##  Modelos de Machine Learning
+## 🔍 3. Carregamento e Análise Inicial dos Dados
 
-Dois algoritmos clássicos e robustos foram utilizados:
+Os arquivos CSV são carregados separadamente para cada classe (Normal e Desbalanceamento). Cada arquivo representa uma execução independente do sistema.
 
-| Modelo            | Vantagens                                       | Configuração                         |
-| ----------------- | ----------------------------------------------- | ------------------------------------ |
-| **Random Forest** | Interpretável, robusto a ruído                  | 100 árvores, profundidade máxima = 8 |
-| **XGBoost**       | Alta performance, lida bem com desbalanceamento | 100 estimadores, learning rate = 0.1 |
+Uma análise inicial revelou:
 
----
+* Diferença clara de **amplitude** entre classes
+* Presença de **offset DC** (valor médio diferente de zero)
+* Ruído de baixa frequência não relacionado à falha
 
-##  Balanceamento de Classes
-
-* **Problema:** desbalanceamento severo (12.8% vs 87.2%)
-* **Solução:**
-
-  * SMOTE (Synthetic Minority Over-sampling Technique)
-  * `class_weight='balanced'`
-
- **Resultado:** treinamento mais justo e melhora significativa no *recall* da classe minoritária.
+Essas observações guiaram diretamente as escolhas de pré-processamento.
 
 ---
 
-## 📈 Resultados Obtidos
+## 🔧 4. Pré-processamento dos Sinais
 
-### 🏆 Comparação dos Modelos
+O pré-processamento foi tratado como uma etapa **crítica**, pois sinais de vibração reais são naturalmente ruidosos.
 
-| Modelo        | Acurácia   | F1-Score   | ROC-AUC    |
-| ------------- | ---------- | ---------- | ---------- |
-| Random Forest | 0.8161     | 0.8857     | 0.8352     |
-| **XGBoost**   | **0.8851** | **0.9306** | **0.8361** |
+### 4.1 Remoção da Componente DC
 
----
+```python
+from scipy.signal import detrend
 
-## 📊 Análise dos Resultados
-
-### 🔹 XGBoost — Melhor Desempenho
-
-* **Acurácia:** 88.51% → ~9 em cada 10 previsões corretas
-* **F1-Score:** 93.06% → excelente equilíbrio entre *precision* e *recall*
-* **ROC-AUC:** 83.61% → boa capacidade discriminativa
-
-### 🔹 Random Forest — Desempenho Sólido
-
-* **Acurácia:** 81.61%
-* **F1-Score:** 88.57%
-* **ROC-AUC:** 83.52%
-
- **Conclusão:** o **XGBoost supera o Random Forest em todas as métricas**, sendo mais adequado para uso em produção.
-
----
-
-##  Matriz de Confusão Esperada (XGBoost)
-
-```text
-               Previsto
-               Normal  Desbalanceamento
-Verdadeiro
-Normal          85–90%       10–15%
-Desbalanceamento 5–10%      90–95%
+def remover_dc(sinal):
+    return detrend(sinal, type='constant')
 ```
 
-🔍 Prioriza a redução de **falsos negativos**, essencial em manutenção preditiva.
+**Motivação:**
+
+* Sensores reais frequentemente apresentam deslocamento do zero
+* O offset DC não carrega informação sobre falhas
+* Pode distorcer métricas como RMS e PSD
+
+A função `detrend` é numericamente estável e amplamente utilizada em análise de vibração.
 
 ---
 
-##  Features Mais Importantes (XGBoost)
+### 4.2 Filtragem Passa-Banda (5–200 Hz)
 
-* **RMS (Root Mean Square)** — energia do sinal
-* **Curtose** — distribuição de picos
-* **Desvio Padrão** — variabilidade
-* **Média** — nível geral de vibração
+```python
+from scipy.signal import butter, filtfilt
 
- **Insight:** falhas por desbalanceamento afetam principalmente a **energia** e a **distribuição** do sinal, não apenas a amplitude.
-
----
-
-## ⚡ Desafios Técnicos e Soluções
-
-| Desafio                 | Solução                          | Resultado              |
-| ----------------------- | -------------------------------- | ---------------------- |
-| Desbalanceamento severo | SMOTE + class_weight             | F1-Score de 93%        |
-| Ruído nos sinais        | Filtro + RobustScaler            | Sinais mais limpos     |
-| Overfitting             | Limite de profundidade + CV      | Modelos generalizáveis |
-| Seleção de features     | Importância + features temporais | Modelo eficiente       |
-
----
-
-##  Conclusões
-
-
-
-###  Análise Crítica
-
-* ROC-AUC (~83.6%) indica espaço para melhoria
-* Acurácia < 90% reflete a complexidade do problema real
-
----
-
-## 📈 Recomendações para Produção
-
-* Monitoramento contínuo do modelo
-* Coleta de mais dados da classe **Normal**
-* Sistema de alertas com *threshold* ajustável
-
-
----
-
-## 🚀 Próximos Passos
-
-* LSTM / CNN para séries temporais
-* Análise no domínio da frequência (FFT, Wavelets)
-* Otimização de hiperparâmetros
-* Ensemble de modelos
-* Validação cruzada aninhada
-
----
-
-## 📁 Estrutura do Projeto
-
-```text
-detection-falhas-mecanicas/
-│
-├── desafio_falhas_mecanicas.ipynb
-├── resultados_finais.png
-├── README.md
-├── requirements.txt
-│
-└── data/
-    ├── normal/
-    └── imbalance/
-        ├── 6g/
-        ├── 10g/
-        └── .../
+def filtro_butter(sinal, fs, low=5, high=200, ordem=4):
+    nyq = fs / 2
+    b, a = butter(ordem, [low/nyq, high/nyq], btype='band')
+    return filtfilt(b, a, sinal)
 ```
 
----
+**Justificativa técnica:**
 
+* Frequências abaixo de 5 Hz estão associadas a movimentos estruturais e instalação
+* Frequências acima de 200 Hz apresentaram apenas ruído
+* O desbalanceamento mecânico se manifesta principalmente em baixas e médias frequências
 
-
-### 2️⃣ Dependências
-
-* pandas
-* numpy
-* scikit-learn
-* xgboost
-* imbalanced-learn
-* matplotlib
-* seaborn
-* scipy
-
-
-##  Autor
-
-* **Nome:** Carlos Henrique 
-* **LinkedIn:** https://www.linkedin.com/in/carlos-henrique-rodri/
-* **Email:** [seu.email@provedor.com](ch.rodrigues098@gmail.com))
+O filtro Butterworth foi escolhido por possuir resposta plana na banda passante.
 
 ---
 
-##  Resultado Final
+### 4.3 Normalização – RobustScaler
 
-🎯 **XGBoost com F1-Score de 93.06%** — solução robusta, eficiente e pronta para evolução em cenários reais de manutenção preditiva.
+```python
+from sklearn.preprocessing import RobustScaler
+```
 
-Se este projeto foi útil, ⭐ considere dar uma estrela no repositório!
+**Por que RobustScaler?**
+
+* Utiliza mediana e intervalo interquartil
+* Muito menos sensível a outliers
+* Ideal para sinais experimentais com picos ocasionais
+
+Essa escolha é particularmente importante porque falhas mecânicas podem gerar **valores extremos reais**, que não devem ser removidos.
+
+---
+
+## 🪟 5. Janelamento dos Sinais
+
+Como cada arquivo possui milhares de amostras, foi aplicada segmentação em janelas deslizantes:
+
+```python
+def dividir_janelas(sinal, tamanho=2048, overlap=0.5):
+    passo = int(tamanho * (1 - overlap))
+    return [sinal[i:i+tamanho] for i in range(0, len(sinal)-tamanho, passo)]
+```
+
+**Parâmetros escolhidos:**
+
+* Janela: 2048 amostras (~2 segundos)
+* Overlap: 50%
+
+**Benefícios:**
+
+* Aumento significativo do número de amostras
+* Preservação da continuidade temporal
+* Melhor generalização dos modelos
+
+---
+
+## 🧮 6. Extração de Features
+
+Foram escolhidas features **simples, interpretáveis e fisicamente significativas**.
+
+### 6.1 Features no Domínio do Tempo
+
+* **RMS:** energia do sinal
+* **Curtose:** sensibilidade a impactos
+* **Skewness:** assimetria da vibração
+
+Essas métricas são amplamente utilizadas em manutenção preditiva.
+
+### 6.2 Features no Domínio da Frequência
+
+A densidade espectral de potência foi calculada usando o método de Welch:
+
+```python
+from scipy.signal import welch
+```
+
+Features extraídas:
+
+* Frequência dominante
+* Potência total
+
+Apesar de calculadas, essas features mostraram menor poder discriminativo.
+
+---
+
+## ⚖️ 7. Tratamento do Desbalanceamento das Classes
+
+Após o janelamento, ainda havia desbalanceamento entre as classes.
+
+Foi utilizado **SMOTE apenas no conjunto de treino**:
+
+```python
+from imblearn.over_sampling import SMOTE
+```
+
+Essa abordagem evita *data leakage* e melhora a capacidade de generalização.
+
+---
+
+## 🤖 8. Modelagem de Machine Learning
+
+### 8.1 Random Forest
+
+* Robusto a ruído
+* Interpretável
+* Excelente baseline industrial
+
+### 8.2 XGBoost
+
+* Gradient boosting
+* Regularização nativa
+* Alta performance em dados tabulares
+
+Ambos foram treinados sob as mesmas condições para garantir comparação justa.
+
+---
+
+## 📊 9. Avaliação dos Modelos
+
+### Métricas utilizadas:
+
+* **Acurácia** (visão geral)
+* **F1-score** (principal métrica)
+* **ROC-AUC** (capacidade discriminativa)
+
+A validação cruzada estratificada foi utilizada durante o desenvolvimento.
+
+---
+
+## 📈 10. Resultados Obtidos
+
+* Random Forest apresentou melhor equilíbrio entre precisão e recall
+* F1-score em torno de **0.74**, considerado adequado dada a dificuldade do problema
+* ROC-AUC próximo de **0.55**, indicando separação limitada entre classes
+
+Isso reforça que o problema é **intrinsecamente desafiador** com features simples.
+
+---
+
+## 📝 11. Conclusões 
+
+Este projeto demonstra:
+
+* Capacidade de estruturar um pipeline completo de ML
+* Tomada de decisão baseada em dados e domínio físico
+* Preocupação com boas práticas (evitar data leakage, validação justa)
+* Clareza na comunicação técnica
+
+A solução não busca apenas maximizar métricas, mas **resolver o problema de forma correta, explicável e reproduzível**, como exigido em ambientes industriais reais.
+
+---
+
+## 🚀 12. Próximos Passos Sugeridos
+
+* Inclusão de múltiplos canais
+* Features tempo-frequência (wavelets)
+* Modelos deep learning (CNN 1D)
+* Explainable AI (SHAP)
+* Pipeline em tempo real
+
+
