@@ -1,154 +1,220 @@
-#  Desafio Técnico – Detecção de Falhas Mecânicas
+# 🔧 Detecção de Falhas Mecânicas — Projeto de Machine Learning
 
-## 1. Contexto e Objetivo
-
-Este repositório apresenta uma solução desenvolvida para o **Desafio Técnico de Detecção de Falhas Mecânicas**, utilizando o dataset **MAFAULDA (Machinery Fault Simulator)**.  
-
- **Objetivo principal:** Demonstrar a aplicação de técnicas de **Ciência de Dados e Machine Learning** para identificar falhas mecânicas a partir de séries temporais multivariadas provenientes de sensores.
-
-O problema abordado consiste na **classificação de duas condições operacionais**:
-
--  Operação normal do sistema  
--  Falha por desbalanceamento (*Imbalance*)
-
-A solução foi estruturada para refletir um fluxo típico de projetos corporativos de **manutenção preditiva**, cobrindo desde o tratamento dos dados até a avaliação comparativa de modelos.
+Projeto desenvolvido para um **Desafio Técnico de Machine Learning**, implementando uma solução **end-to-end** para detecção de falhas mecânicas utilizando o dataset **MAFAULDA (Machinery Fault Simulator)**.
 
 ---
 
-## 2. Base de Dados
+##  Visão Geral
 
-O dataset **MAFAULDA** contém sinais de sensores coletados em um simulador de falhas mecânicas (MFS). Cada conjunto de dados representa uma condição operacional específica do equipamento.
+**Objetivo:** classificar sinais de vibração em:
 
-**Principais características:**
-- Séries temporais multivariadas  
-- Dados oriundos de sensores mecânicos  
-- Classes bem definidas, adequadas para problemas de classificação supervisionada  
+*  **Operação Normal**
+*  **Desbalanceamento Mecânico**
 
- Este tipo de base é amplamente utilizado em contextos industriais para soluções de **monitoramento de condição** e **manutenção preditiva**.
+O projeto aborda desafios reais de **dados industriais**, como ruído, outliers e **desbalanceamento severo de classes**, aplicando técnicas de pré-processamento, balanceamento e modelagem.
 
 ---
 
-![banner](/img/papilane.png)
+##  Dataset
 
-## 3. Estratégia de Pré-processamento
+**MAFAULDA – Machinery Fault Simulator**
 
-Para preparar os dados e maximizar o desempenho dos algoritmos, foram aplicadas diferentes técnicas de pré-processamento.
+*  **382 arquivos** de séries temporais multivariadas
+*  **Classes:**
 
-### 3.1  Extração de Features Estatísticas
-Transformação dos sinais temporais em *features* representativas, como:
-- Média  
-- Desvio padrão  
-- Valores máximo e mínimo  
-- Amplitude  
-- RMS (*Root Mean Square*)  
+  * Normal: **49 arquivos (12.8%)**
+  * Desbalanceamento: **333 arquivos (87.2%)**
+*  **Sensores:** múltiplos canais de vibração
 
-**Impacto esperado:**
-- Redução de ruído  
-- Simplificação do modelo  
-- Melhoria da capacidade de generalização  
+> ⚠️ Dataset altamente desbalanceado, refletindo cenários industriais reais.
 
 ---
 
-### 3.2  Escalonamento com RobustScaler
-Aplicação do **RobustScaler** para normalização dos dados.  
+## 🏗️ Arquitetura da Solução
 
-**Justificativa:**  
-Sinais mecânicos frequentemente apresentam picos e outliers. O RobustScaler é menos sensível a valores extremos, garantindo maior estabilidade no treinamento.  
-
-**Impacto esperado:**
-- Treinamento mais consistente  
-- Melhor convergência dos algoritmos  
-
----
-
-### 3.3  Balanceamento de Classes com SMOTE
-Uso da técnica **SMOTE (Synthetic Minority Over-sampling Technique)** para lidar com desbalanceamento entre classes.  
-
-**Impacto esperado:**
-- Redução de viés em favor da classe majoritária  
-- Melhoria em métricas como *Recall* e *F1-score*  
+```text
+📁 Dados Brutos
+   →  Pré-processamento
+      →  Extração de Features
+         →  Modelagem
+            →  Avaliação
+```
 
 ---
 
-## 4. Modelagem e Algoritmos Utilizados
+##  Pré-processamento
 
-Foram selecionados dois algoritmos amplamente utilizados em ambientes corporativos:
+Duas estratégias foram implementadas e comparadas:
 
-### 4.1  Random Forest
-Modelo baseado em *ensemble learning*, combinando múltiplas árvores de decisão.  
-
-**Características:**
-- Robustez a ruído  
-- Boa interpretabilidade  
-- Baixa necessidade de ajuste fino  
-
-**Motivação:**  
-Escolha comum em projetos industriais devido à sua estabilidade e confiabilidade.  
+| Técnica                     | Justificativa                                   | Impacto                            |
+| --------------------------- | ----------------------------------------------- | ---------------------------------- |
+| **RobustScaler**            | Robusto a outliers comuns em sinais de sensores | Reduz influência de picos anômalos |
+| **StandardScaler + Filtro** | Remove ruído e padroniza amplitude              | Melhora a qualidade do sinal       |
 
 ---
 
-### 4.2  XGBoost
-Algoritmo de *gradient boosting* reconhecido por alto desempenho.  
+##  Modelos de Machine Learning
 
-**Características:**
-- Capacidade de capturar padrões complexos  
-- Excelente performance em dados estruturados  
+Dois algoritmos clássicos e robustos foram utilizados:
 
-**Motivação:**  
-Adequado para cenários onde o foco é maximizar a performance preditiva.  
-
----
-
-## 5. Treinamento e Validação
-
-Boas práticas aplicadas no processo de modelagem:
-
-- Separação estratificada em treino e teste  
-- Uso de **validação cruzada estratificada (Stratified K-Fold)**  
-- Construção de um **pipeline** integrando escalonamento, balanceamento e modelo  
-
- Essa abordagem reduz risco de *data leakage* e assegura avaliação consistente.
+| Modelo            | Vantagens                                       | Configuração                         |
+| ----------------- | ----------------------------------------------- | ------------------------------------ |
+| **Random Forest** | Interpretável, robusto a ruído                  | 100 árvores, profundidade máxima = 8 |
+| **XGBoost**       | Alta performance, lida bem com desbalanceamento | 100 estimadores, learning rate = 0.1 |
 
 ---
 
-## 6. Avaliação de Desempenho
+##  Balanceamento de Classes
 
-Os modelos foram avaliados com métricas relevantes para classificação binária:
+* **Problema:** desbalanceamento severo (12.8% vs 87.2%)
+* **Solução:**
 
-- **Acurácia** → visão geral do desempenho  
-- **F1-score** → equilíbrio entre precisão e recall  
-- **ROC AUC** → capacidade de separação entre classes  
+  * SMOTE (Synthetic Minority Over-sampling Technique)
+  * `class_weight='balanced'`
 
-###  Análise Comparativa
-- **Random Forest** → desempenho consistente e interpretável  
-- **XGBoost** → métricas superiores (F1-score e ROC AUC), maior capacidade discriminativa  
-
-👉 A escolha depende do contexto do negócio: interpretabilidade vs. performance.
+ **Resultado:** treinamento mais justo e melhora significativa no *recall* da classe minoritária.
 
 ---
 
-## 7. Conclusão
+## 📈 Resultados Obtidos
 
-A solução atende integralmente aos requisitos do desafio técnico e demonstra a aplicação prática de **Machine Learning em contexto industrial**.
+### 🏆 Comparação dos Modelos
 
-**Principais pontos:**
-- Uso de múltiplas técnicas de pré-processamento  
-- Comparação estruturada entre dois algoritmos consagrados  
-- Avaliação baseada em métricas relevantes para o negócio  
-
- O pipeline é escalável e pode ser adaptado para novos tipos de falhas, sensores adicionais ou integração em sistemas de monitoramento.
+| Modelo        | Acurácia   | F1-Score   | ROC-AUC    |
+| ------------- | ---------- | ---------- | ---------- |
+| Random Forest | 0.8161     | 0.8857     | 0.8352     |
+| **XGBoost**   | **0.8851** | **0.9306** | **0.8361** |
 
 ---
 
-## 8. Tecnologias Utilizadas
+## 📊 Análise dos Resultados
 
--  Python  
--  Pandas & NumPy  
--  Scikit-learn  
--  Imbalanced-learn (SMOTE)  
--  XGBoost  
--  Matplotlib & Seaborn  
+### 🔹 XGBoost — Melhor Desempenho
+
+* **Acurácia:** 88.51% → ~9 em cada 10 previsões corretas
+* **F1-Score:** 93.06% → excelente equilíbrio entre *precision* e *recall*
+* **ROC-AUC:** 83.61% → boa capacidade discriminativa
+
+### 🔹 Random Forest — Desempenho Sólido
+
+* **Acurácia:** 81.61%
+* **F1-Score:** 88.57%
+* **ROC-AUC:** 83.52%
+
+ **Conclusão:** o **XGBoost supera o Random Forest em todas as métricas**, sendo mais adequado para uso em produção.
 
 ---
 
-AUTOR: Carlos Henrique Rodrigues Paixão
+##  Matriz de Confusão Esperada (XGBoost)
+
+```text
+               Previsto
+               Normal  Desbalanceamento
+Verdadeiro
+Normal          85–90%       10–15%
+Desbalanceamento 5–10%      90–95%
+```
+
+🔍 Prioriza a redução de **falsos negativos**, essencial em manutenção preditiva.
+
+---
+
+##  Features Mais Importantes (XGBoost)
+
+* **RMS (Root Mean Square)** — energia do sinal
+* **Curtose** — distribuição de picos
+* **Desvio Padrão** — variabilidade
+* **Média** — nível geral de vibração
+
+ **Insight:** falhas por desbalanceamento afetam principalmente a **energia** e a **distribuição** do sinal, não apenas a amplitude.
+
+---
+
+## ⚡ Desafios Técnicos e Soluções
+
+| Desafio                 | Solução                          | Resultado              |
+| ----------------------- | -------------------------------- | ---------------------- |
+| Desbalanceamento severo | SMOTE + class_weight             | F1-Score de 93%        |
+| Ruído nos sinais        | Filtro + RobustScaler            | Sinais mais limpos     |
+| Overfitting             | Limite de profundidade + CV      | Modelos generalizáveis |
+| Seleção de features     | Importância + features temporais | Modelo eficiente       |
+
+---
+
+##  Conclusões
+
+
+
+###  Análise Crítica
+
+* ROC-AUC (~83.6%) indica espaço para melhoria
+* Acurácia < 90% reflete a complexidade do problema real
+
+---
+
+## 📈 Recomendações para Produção
+
+* Monitoramento contínuo do modelo
+* Coleta de mais dados da classe **Normal**
+* Sistema de alertas com *threshold* ajustável
+
+
+---
+
+## 🚀 Próximos Passos
+
+* LSTM / CNN para séries temporais
+* Análise no domínio da frequência (FFT, Wavelets)
+* Otimização de hiperparâmetros
+* Ensemble de modelos
+* Validação cruzada aninhada
+
+---
+
+## 📁 Estrutura do Projeto
+
+```text
+detection-falhas-mecanicas/
+│
+├── desafio_falhas_mecanicas.ipynb
+├── resultados_finais.png
+├── README.md
+├── requirements.txt
+│
+└── data/
+    ├── normal/
+    └── imbalance/
+        ├── 6g/
+        ├── 10g/
+        └── .../
+```
+
+---
+
+
+
+### 2️⃣ Dependências
+
+* pandas
+* numpy
+* scikit-learn
+* xgboost
+* imbalanced-learn
+* matplotlib
+* seaborn
+* scipy
+
+
+##  Autor
+
+* **Nome:** Carlos Henrique 
+* **LinkedIn:** https://www.linkedin.com/in/carlos-henrique-rodri/
+* **Email:** [seu.email@provedor.com](ch.rodrigues098@gmail.com))
+
+---
+
+##  Resultado Final
+
+🎯 **XGBoost com F1-Score de 93.06%** — solução robusta, eficiente e pronta para evolução em cenários reais de manutenção preditiva.
+
+Se este projeto foi útil, ⭐ considere dar uma estrela no repositório!
