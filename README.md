@@ -1,263 +1,243 @@
-# 📋 Relatório Técnico Detalhado – Detecção de Falhas Mecânicas (MAFAULDA)
+### 🛠️ Detecção de Falhas Mecânicas com Aprendizado de Máquina
 
-**Autor:** Carlos Henrique Rodrigues P.
+Desafio Técnico – MAFAULDA / MFS
 
----
+#### 1. Visão Geral do Projeto
 
-## 📌 Introdução
+Este projeto tem como objetivo desenvolver um pipeline completo de detecção automática de falhas mecânicas a partir de sinais de sensores, utilizando técnicas de processamento de sinais, extração de características e aprendizado de máquina supervisionado.
 
-Este relatório foi elaborado para **explicar de forma clara, detalhada e justificada** todas as decisões técnicas implementadas no notebook do *Desafio Técnico – Detecção de Falhas Mecânicas*.
+O estudo foi realizado com o banco de dados MAFAULDA, que contém séries temporais multivariadas adquiridas a partir do Machinery Fault Simulator (MFS). As condições analisadas neste trabalho foram:
 
-O objetivo do trabalho é classificar automaticamente sinais de vibração do dataset **MAFAULDA**, distinguindo entre:
+- Operação Normal
 
-* **Classe 0 – Operação Normal**
-* **Classe 1 – Desbalanceamento Mecânico**
+- Desbalanceamento (Imbalance)
 
-Todo o pipeline foi desenvolvido com foco em **clareza, reprodutibilidade e alinhamento com práticas industriais**.
+O foco principal do projeto é avaliar a capacidade de diferentes modelos em detectar falhas mecânicas, priorizando métricas relevantes para manutenção preditiva.
 
----
+2. Estrutura do Pipeline
 
-## 🎯 1. Contexto do Problema e Objetivo
+O pipeline foi organizado nas seguintes etapas:
 
-### 1.1 Dataset MAFAULDA
+1. Aquisição e organização dos dados
 
-O dataset MAFAULDA é composto por sinais de vibração obtidos a partir de um **simulador de falhas mecânicas (MFS – Machinery Fault Simulator)**.
+2. Pré-processamento dos sinais
 
-**Características principais:**
+3. Extração de características no domínio do tempo e da frequência
 
-* Sinais experimentais reais (não sintéticos)
-* Ambiente controlado de laboratório
-* Arquivos CSV independentes
-* Frequência de amostragem: **1000 Hz**
-* Múltiplos canais por arquivo (foi utilizado **apenas um canal**, propositalmente)
+4. Balanceamento e divisão dos dados
 
-Essa escolha torna o problema mais realista, pois em aplicações industriais muitas vezes **nem todos os sensores estão disponíveis**.
+5. Treinamento dos modelos
 
-### 1.2 Objetivo do Projeto
+6. Avaliação e comparação de desempenho
 
-Desenvolver um classificador binário capaz de identificar automaticamente o estado mecânico do sistema a partir de sinais de vibração, seguindo três princípios:
+7. Visualização e interpretação dos resultados
 
-1. Pipeline simples e interpretável
-2. Decisões técnicas justificadas fisicamente
-3. Avaliação justa e reproduzível
+#### 3. Aquisição e Organização dos Dados
 
----
+Os dados foram carregados a partir de arquivos CSV contendo sinais temporais provenientes de sensores do MFS.
 
-## 🧩 2. Estratégia Global da Solução
+Decisões tomadas:
 
-O pipeline segue a abordagem clássica de *Machine Learning* aplicada a sinais temporais:
+Cada arquivo representa uma condição específica de operação.
 
-```
-Carregamento → Pré-processamento → Janelamento → Extração de Features → Modelagem → Avaliação
-```
+Foi mantido o identificador do arquivo (```arquivo_id``) para rastreabilidade das janelas extraídas.
 
-**Filosofia adotada:**
+As classes foram codificadas como:
 
-* Começar simples e evoluir com base nos dados
-* Priorizar métodos explicáveis (importante em contexto industrial)
-* Evitar soluções excessivamente complexas para um dataset limitado
+- ```0``` → Operação Normal
 
----
+- ```1``` → Falha por Desbalanceamento
 
-## 🔍 3. Carregamento e Análise Inicial dos Dados
+#### 4. Pré-processamento dos Dados
 
-Os arquivos CSV são carregados separadamente para cada classe (Normal e Desbalanceamento). Cada arquivo representa uma execução independente do sistema.
+O pré-processamento foi realizado antes da extração das características, garantindo sinais mais estáveis e informativos.
 
-Uma análise inicial revelou:
+Etapas aplicadas:
 
-* Diferença clara de **amplitude** entre classes
-* Presença de **offset DC** (valor médio diferente de zero)
-* Ruído de baixa frequência não relacionado à falha
+1. Conversão para valores numéricos
 
-Essas observações guiaram diretamente as escolhas de pré-processamento.
+- Remoção de valores ausentes ou inválidos.
 
----
+2. Remoção do componente DC
 
-## 🔧 4. Pré-processamento dos Sinais
+- Elimina deslocamentos do sinal que não carregam informação física relevante.
 
-O pré-processamento foi tratado como uma etapa **crítica**, pois sinais de vibração reais são naturalmente ruidosos.
+3. Filtragem
 
-### 4.1 Remoção da Componente DC
+- Aplicação de filtros para reduzir ruídos de alta frequência.
 
-```python
-from scipy.signal import detrend
+4. Segmentação em janelas deslizantes
 
-def remover_dc(sinal):
-    return detrend(sinal, type='constant')
-```
+   - O sinal foi dividido em janelas com tamanho fixo, permitindo:
 
-**Motivação:**
+       - Aumento do número de amostras
+ 
+     - Captura de comportamentos locais do sinal
 
-* Sensores reais frequentemente apresentam deslocamento do zero
-* O offset DC não carrega informação sobre falhas
-* Pode distorcer métricas como RMS e PSD
+Justificativa:
 
-A função `detrend` é numericamente estável e amplamente utilizada em análise de vibração.
+A divisão em janelas é uma prática comum em análise de vibração, pois falhas mecânicas se manifestam de forma localizada no tempo.
 
----
+#### 5. Extração de Características
 
-### 4.2 Filtragem Passa-Banda (5–200 Hz)
+Para cada janela de sinal, foram extraídas características nos domínios:
 
-```python
-from scipy.signal import butter, filtfilt
+5.1 Domínio do Tempo
 
-def filtro_butter(sinal, fs, low=5, high=200, ordem=4):
-    nyq = fs / 2
-    b, a = butter(ordem, [low/nyq, high/nyq], btype='band')
-    return filtfilt(b, a, sinal)
-```
+- RMS (Root Mean Square)
 
-**Justificativa técnica:**
+- Curtose
 
-* Frequências abaixo de 5 Hz estão associadas a movimentos estruturais e instalação
-* Frequências acima de 200 Hz apresentaram apenas ruído
-* O desbalanceamento mecânico se manifesta principalmente em baixas e médias frequências
+- Assimetria (Skewness)
 
-O filtro Butterworth foi escolhido por possuir resposta plana na banda passante.
+Essas métricas capturam:
 
----
+- Energia do sinal
 
-### 4.3 Normalização – RobustScaler
+- Presença de impulsos
 
-```python
-from sklearn.preprocessing import RobustScaler
-```
+- Assimetria associada a falhas mecânicas
 
-**Por que RobustScaler?**
+5.2 Domínio da Frequência (FFT)
 
-* Utiliza mediana e intervalo interquartil
-* Muito menos sensível a outliers
-* Ideal para sinais experimentais com picos ocasionais
+A Transformada Rápida de Fourier (FFT) foi aplicada a cada janela.
 
-Essa escolha é particularmente importante porque falhas mecânicas podem gerar **valores extremos reais**, que não devem ser removidos.
+Características extraídas:
 
----
+- Média da FFT
 
-## 🪟 5. Janelamento dos Sinais
+- Desvio padrão da FFT
 
-Como cada arquivo possui milhares de amostras, foi aplicada segmentação em janelas deslizantes:
+- Valor máximo e mínimo da FFT
 
-```python
-def dividir_janelas(sinal, tamanho=2048, overlap=0.5):
-    passo = int(tamanho * (1 - overlap))
-    return [sinal[i:i+tamanho] for i in range(0, len(sinal)-tamanho, passo)]
-```
+- Frequência do pico espectral
 
-**Parâmetros escolhidos:**
+Justificativa:
 
-* Janela: 2048 amostras (~2 segundos)
-* Overlap: 50%
+Falhas como desbalanceamento tendem a introduzir padrões específicos no espectro de frequência, tornando a FFT uma ferramenta fundamental.
 
-**Benefícios:**
+#### 6. Construção do Dataset
 
-* Aumento significativo do número de amostras
-* Preservação da continuidade temporal
-* Melhor generalização dos modelos
+- Cada linha do dataset representa uma janela de sinal.
 
----
+- O dataset final possui milhares de janelas, aumentando a capacidade de generalização dos modelos.
 
-## 🧮 6. Extração de Features
+- Foram verificados valores ausentes após a extração das features, garantindo um dataset consistente.
 
-Foram escolhidas features **simples, interpretáveis e fisicamente significativas**.
+#### 7. Balanceamento e Divisão dos Dados
+Balanceamento:
 
-### 6.1 Features no Domínio do Tempo
+As classes foram balanceadas selecionando o mesmo número de janelas para cada condição, evitando viés do modelo.
 
-* **RMS:** energia do sinal
-* **Curtose:** sensibilidade a impactos
-* **Skewness:** assimetria da vibração
+Divisão:
 
-Essas métricas são amplamente utilizadas em manutenção preditiva.
+- 70% Treinamento
 
-### 6.2 Features no Domínio da Frequência
+- 30% Validação
 
-A densidade espectral de potência foi calculada usando o método de Welch:
+Normalização:
 
-```python
-from scipy.signal import welch
-```
+- Aplicado StandardScaler
 
-Features extraídas:
+- Essencial para modelos sensíveis à escala das features
 
-* Frequência dominante
-* Potência total
+### 8. Modelos Avaliados
 
-Apesar de calculadas, essas features mostraram menor poder discriminativo.
+Foram selecionados dois modelos clássicos e amplamente utilizados em problemas industriais:
 
----
+8.1 Random Forest
 
-## ⚖️ 7. Tratamento do Desbalanceamento das Classes
+- Modelo baseado em múltiplas árvores de decisão
 
-Após o janelamento, ainda havia desbalanceamento entre as classes.
+- Robusto a ruídos
 
-Foi utilizado **SMOTE apenas no conjunto de treino**:
+- Capaz de capturar relações não lineares
 
-```python
-from imblearn.over_sampling import SMOTE
-```
+- Fornece interpretabilidade via importância das features
 
-Essa abordagem evita *data leakage* e melhora a capacidade de generalização.
+8.2 XGBoost
 
----
+- Algoritmo de Gradient Boosting otimizado
 
-## 🤖 8. Modelagem de Machine Learning
+- Excelente desempenho em dados tabulares
 
-### 8.1 Random Forest
+- Capaz de modelar padrões complexos
 
-* Robusto a ruído
-* Interpretável
-* Excelente baseline industrial
+Justificativa da escolha:
 
-### 8.2 XGBoost
+Esses modelos são frequentemente utilizados em aplicações industriais por combinarem bom desempenho, robustez e baixa necessidade de ajuste fino.
 
-* Gradient boosting
-* Regularização nativa
-* Alta performance em dados tabulares
+#### 9. Métricas de Avaliação
 
-Ambos foram treinados sob as mesmas condições para garantir comparação justa.
+Como o objetivo é detectar falhas mecânicas, a avaliação foi orientada para métricas além da acurácia:
 
----
+- Precisão
 
-## 📊 9. Avaliação dos Modelos
+- Recall
 
-### Métricas utilizadas:
+- F1-score
 
-* **Acurácia** (visão geral)
-* **F1-score** (principal métrica)
-* **ROC-AUC** (capacidade discriminativa)
+- AUC-ROC
 
-A validação cruzada estratificada foi utilizada durante o desenvolvimento.
+- Matriz de Confusão Normalizada
 
----
+Observação importante:
 
-## 📈 10. Resultados Obtidos
+Em manutenção preditiva, recall da classe de falha é especialmente crítico, pois falhas não detectadas podem gerar custos elevados ou riscos operacionais.
 
-* Random Forest apresentou melhor equilíbrio entre precisão e recall
-* F1-score em torno de **0.74**, considerado adequado dada a dificuldade do problema
-* ROC-AUC próximo de **0.55**, indicando separação limitada entre classes
+#### 10. Resultados Obtidos
+Desempenho Geral
 
-Isso reforça que o problema é **intrinsecamente desafiador** com features simples.
+- Random Forest
 
----
+    - Melhor equilíbrio entre precisão e recall
 
-## 📝 11. Conclusões 
+    - Melhor interpretabilidade
 
-Este projeto demonstra:
+- XGBoost
 
-* Capacidade de estruturar um pipeline completo de ML
-* Tomada de decisão baseada em dados e domínio físico
-* Preocupação com boas práticas (evitar data leakage, validação justa)
-* Clareza na comunicação técnica
+    - Capacidade semelhante de separação das classes
 
-A solução não busca apenas maximizar métricas, mas **resolver o problema de forma correta, explicável e reproduzível**, como exigido em ambientes industriais reais.
+    - Levemente superior em AUC em alguns cenários
 
----
+As curvas ROC indicam uma capacidade moderada de separação, consistente com a complexidade do problema e o conjunto de features utilizado.
 
-## 🚀 12. Próximos Passos Sugeridos
+#### 11. Visualização dos Resultados
 
-* Inclusão de múltiplos canais
-* Features tempo-frequência (wavelets)
-* Modelos deep learning (CNN 1D)
-* Explainable AI (SHAP)
-* Pipeline em tempo real
+Foram geradas as seguintes visualizações:
 
+- Curva ROC comparativa entre os modelos
 
+- Matriz de confusão normalizada
+
+- Importância das características (Random Forest)
+
+Essas visualizações permitem:
+
+- Identificar erros críticos
+
+- Avaliar sensibilidade à falha
+
+- Interpretar o comportamento do modelo
+
+#### 12. Limitações do Estudo
+
+- As features foram extraídas de janelas independentes, o que pode introduzir correlação entre amostras.
+
+- O modelo não considera explicitamente a rotação da máquina ou ordens harmônicas específicas.
+
+- O dataset foi limitado a duas condições operacionais.
+
+#### 13. Trabalhos Futuros
+
+- Extração de features por bandas específicas de frequência
+
+- Uso de estatísticas móveis (rolling features)
+
+- Classificação por arquivo completo, não apenas por janelas
+
+- Avaliação de modelos baseados em Deep Learning (CNNs 1D)
+
+#### 14. Conclusão
+
+Este trabalho apresentou um pipeline completo e estruturado para detecção de falhas mecânicas utilizando dados de vibração. Os resultados demonstram que técnicas clássicas de aprendizado de máquina, aliadas a um pré-processamento adequado e extração de características no domínio da frequência, são capazes de identificar padrões associados a falhas mecânicas de forma consistente.
