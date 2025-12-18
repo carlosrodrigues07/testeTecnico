@@ -1,222 +1,157 @@
-# 📌 Detecção de Falhas Mecânicas – MAFAULDA
+# 🧠 Detecção de Desbalanceamento em Máquinas Rotativas Usando Machine Learning
 
-Este projeto foi desenvolvido como **desafio técnico** para classificação de falhas mecânicas utilizando o banco de dados **MAFAULDA (Machinery Fault Simulator)**, com foco na detecção de **desbalanceamento** a partir de sinais de vibração.
-
----
-
-## 1. Objetivo do Projeto
-
-O objetivo é construir um pipeline completo de **Processamento de Sinais + Machine Learning** capaz de distinguir entre:
-
-- **Classe 0 – Operação Normal**
-- **Classe 1 – Desbalanceamento Mecânico**
-
-utilizando séries temporais multivariadas de vibração adquiridas em alta frequência (51.2 kHz).
+Este notebook apresenta um **pipeline completo de Machine Learning aplicado à detecção de desbalanceamento em máquinas rotativas**, utilizando sinais de vibração. O foco é demonstrar **raciocínio técnico**, **decisões de engenharia** e **boas práticas** em problemas reais de Manutenção Preditiva.
 
 ---
 
-## 2. Descrição do Dataset (MAFAULDA)
+## 1️⃣ Carregamento e Análise Exploratória dos Dados
 
-- Fonte: MAFAULDA – Machinery Fault Simulator
-- Tipo de dados: sinais de vibração (CSV)
-- Frequência de amostragem: **51.200 Hz**
-- Falhas utilizadas neste trabalho:
-  - Operação normal
-  - Desbalanceamento com massas de 25g, 30g e 35g
+Nesta etapa, os dados de vibração são carregados a partir de arquivos CSV, organizados em duas classes:
 
-### Distribuição inicial dos arquivos
-- Normal: 49 arquivos
-- Desbalanceamento: 139 arquivos
+* **Normal (0)**
+* **Desbalanceado (1)**
 
-Essa distribuição reflete um **cenário realista de desbalanceamento de classes**, comum em aplicações industriais.
+O objetivo inicial é compreender:
 
----
+* A estrutura dos dados
+* A quantidade de amostras por classe
+* O grau de desbalanceamento do dataset
 
-## 3. Estratégia Geral do Pipeline
-
-O pipeline foi estruturado da seguinte forma:
-
-1. Carregamento dos sinais
-2. Pré-processamento dos sinais
-3. Segmentação em janelas
-4. Extração de features (tempo + frequência)
-5. Balanceamento das classes
-6. Divisão treino/validação por **grupo (arquivo)**
-7. Treinamento de modelos
-8. Avaliação com métricas robustas
-
-Essa abordagem garante **reprodutibilidade**, **controle de vazamento de dados** e **robustez estatística**.
+⚠️ Observa-se um **forte desequilíbrio entre classes**, cenário comum em aplicações industriais reais, onde falhas são menos frequentes que a operação normal. Esse fator impacta diretamente a escolha de métricas e técnicas de balanceamento utilizadas posteriormente.
 
 ---
 
-## 4. Pré-processamento dos Sinais
+## 2️⃣ Pré-processamento dos Sinais
 
-### 4.1 Remoção de tendência (Detrending)
+### 🔹 Filtragem Passa-Banda
 
-A função `detrend` foi utilizada para remover componentes DC e tendências de baixa frequência que não carregam informação discriminativa para falhas mecânicas.
+Os sinais de vibração brutos podem conter ruídos de baixa e alta frequência que não estão relacionados ao fenômeno físico do desbalanceamento. Para mitigar esse efeito, é aplicado um **filtro passa-banda Butterworth** com os seguintes parâmetros:
 
-**Justificativa:**
-> Tendências artificiais podem distorcer métricas estatísticas e espectrais, prejudicando a análise de vibração.
+* Frequência de amostragem: **51.200 Hz**
+* Banda de passagem: **1.000 – 20.000 Hz**
 
-### 4.2 Normalização (Z-score)
+Essa faixa foi escolhida por concentrar componentes relevantes associadas a excitações mecânicas típicas de máquinas rotativas.
 
-Após o detrending, os sinais foram normalizados:
+### 🔹 Remoção de Tendência
 
-\[ x_{norm} = \frac{x - \mu}{\sigma} \]
-
-**Justificativa:**
-> Normalização garante comparabilidade entre sinais adquiridos em condições levemente diferentes e melhora a estabilidade do treinamento dos modelos.
+Após a filtragem, é realizada a **remoção de tendência linear** do sinal, reduzindo efeitos de offset e drift que podem influenciar negativamente a extração de características estatísticas.
 
 ---
 
-## 5. Segmentação em Janelas
+## 3️⃣ Extração de Características (Feature Engineering)
 
-Os sinais contínuos foram divididos em janelas:
+Como algoritmos tradicionais de ML não operam diretamente sobre séries temporais longas, os sinais são transformados em um **vetor de características representativas**. Para cada amostra, são extraídas **13 features**, divididas em três grupos:
 
-- Tamanho da janela: **2048 amostras**
-- Overlap: **50%**
+### 📐 Estatísticas no Domínio do Tempo
 
-**Justificativa técnica:**
-- Janelas curtas permitem capturar fenômenos locais
-- Overlap aumenta a quantidade de amostras sem perder continuidade temporal
-- 2048 pontos oferecem bom compromisso entre resolução temporal e espectral
+* Média
+* Desvio padrão
+* Valor máximo
+* Valor mínimo
+* RMS (*Root Mean Square*)
+* Pico-a-pico
 
----
+Essas métricas capturam variações de amplitude e energia do sinal.
 
-## 6. Extração de Features
+### 📊 Estatísticas Avançadas
 
-Foram extraídas **features híbridas**:
+* **Curtose**: indica impulsividade e presença de picos anômalos
+* **Assimetria (Skewness)**: mede desvios na distribuição do sinal
 
-### 6.1 Domínio do Tempo
+Essas características são úteis para identificar alterações no comportamento vibracional causadas por desbalanceamento.
 
-- RMS (energia do sinal)
-- Curtose (impulsividade)
-- Assimetria (skewness)
+### 📡 Características no Domínio da Frequência
 
-**Justificativa:**
-> Falhas mecânicas alteram a distribuição estatística do sinal, especialmente em termos de energia e impulsividade.
+* Frequência dominante do espectro
+* Energia espectral em três bandas:
 
-### 6.2 Domínio da Frequência (FFT)
+  * Baixa (0–5 kHz)
+  * Média (5–15 kHz)
+  * Alta (15–25 kHz)
+* Razão entre energias
 
-- Média da magnitude espectral
-- Desvio padrão espectral
-- Valor máximo
-- Valor mínimo
-- Frequência de pico
-
-**Justificativa:**
-> O desbalanceamento mecânico se manifesta principalmente na **frequência fundamental de rotação (~50 Hz)** e seus harmônicos, tornando o domínio da frequência altamente informativo.
+A análise espectral é fundamental, pois o desbalanceamento tende a gerar **picos específicos de frequência**, tornando essas features altamente discriminativas.
 
 ---
 
-## 7. Criação do Dataset Final
+## 4️⃣ Preparação dos Dados para Modelagem
 
-Cada janela gera um vetor de features, resultando em um dataset com:
+Antes do treinamento dos modelos, os dados passam por etapas essenciais:
 
-- ~31.000 amostras
-- 8 features
-- Rótulo binário (normal / falha)
+### 🔹 Normalização
 
-Além disso, cada amostra mantém o identificador do arquivo de origem (`arquivo_id`) para controle de vazamento de dados.
+As features são escaladas utilizando `StandardScaler`, garantindo que todas tenham média zero e variância unitária — especialmente importante para algoritmos sensíveis à escala, como SVM.
 
----
+### 🔹 Balanceamento com SMOTE
 
-## 8. Balanceamento das Classes
+Devido ao forte desbalanceamento do dataset, é aplicado o **SMOTE (Synthetic Minority Over-sampling Technique)**, que gera amostras sintéticas da classe minoritária.
 
-Foi aplicada **subamostragem da classe majoritária**, criando um dataset balanceado.
-
-**Justificativa:**
-> Evita viés do classificador para a classe dominante e melhora métricas como recall e F1-score.
-
-> ⚠️ Observação metodológica: em aplicações reais, o balanceamento deve ser aplicado **apenas no conjunto de treino** para evitar viés estatístico.
+Essa abordagem evita viés do modelo em favor da classe majoritária e melhora métricas como **recall** e **F1-score**, mais adequadas que a acurácia em cenários desbalanceados.
 
 ---
 
-## 9. Divisão Treino / Validação
+## 5️⃣ Treinamento dos Modelos de Machine Learning
 
-Foi utilizado **GroupShuffleSplit**, garantindo que:
+Dois algoritmos supervisionados foram avaliados:
 
-- Janelas do mesmo arquivo não apareçam simultaneamente em treino e validação
+### 🌲 Random Forest Classifier
 
-**Justificativa crítica:**
-> Essa abordagem evita *data leakage*, um erro comum em trabalhos com sinais segmentados.
+* Robusto a ruído
+* Capaz de capturar relações não lineares
+* Permite análise de importância das features
 
----
+### ⚙️ XGBoost (XGBClassifier)
 
-## 10. Modelos Utilizados
+* Robusto para dados desbalanceados
+* Alta performance em classificação e regressão
+* Permite ajuste fino de hiperparâmetros para melhor generalização
 
-### 10.1 Random Forest
-
-Parâmetros principais:
-- 500 árvores
-- Profundidade máxima: 10
-- Pesos balanceados
-
-**Justificativa:**
-> Random Forest é robusto a ruído, não linearidades e outliers, sendo uma escolha sólida para dados industriais.
-
-### 10.2 XGBoost
-
-Parâmetros principais:
-- 300 estimadores
-- Learning rate: 0.05
-- Subsample e colsample: 0.8
-
-**Justificativa:**
-> Utilizado como modelo de comparação por sua capacidade de capturar interações complexas entre features espectrais.
-
----
-
-## 11. Resultados Obtidos
-
-### 11.1 Métricas
-
-| Modelo | Acurácia | F1 (Falha) | AUC |
-|------|--------|------------|-----|
-| Random Forest | ~0.61 | ~0.66 | ~0.64 |
-| XGBoost | ~0.60 | ~0.66 | ~0.62 |
-
-### 11.2 Interpretação
-
-Apesar das métricas moderadas, os resultados são **consistentes com a complexidade do problema**:
-
-- Desbalanceamento gera assinaturas espectrais sutis
-- Classes possuem sobreposição significativa
-- Dataset é ruidoso e realista
-
-> Em contextos industriais, modelos com AUC ~0.65 já são úteis como **sistemas de alerta precoce**.
-
----
-
-## 12. Avaliação Visual
-
-- Curvas ROC para comparação dos modelos
-- Matrizes de confusão normalizadas
-
-Essas visualizações permitem compreender melhor o trade-off entre falsos positivos e falsos negativos.
-
----
-
-## 13. Possíveis Melhorias Futuras
-
-- Envelope espectral (Hilbert)
-- Bandas específicas de frequência
-- Features cepstrais
-- Modelos baseados em CNN 1D
-- Validação cruzada por grupo (GroupKFold)
-
----
-
-## 14. Conclusão
-
-Este projeto apresenta um pipeline completo, bem fundamentado e alinhado às boas práticas de **Machine Learning aplicado a manutenção preditiva**, com especial atenção à:
-
-- Engenharia de atributos
-- Controle de vazamento de dados
-- Avaliação justa dos modelos
-
+Os modelos são treinados utilizando divisão treino/teste e avaliados com validação cruzada para maior robustez.
 
 
 ---
 
-📌 **Autor:** Carlos Henrique Rodrigues Paixão
+## 6️⃣ Avaliação e Visualização dos Resultados
+
+O desempenho dos modelos é avaliado utilizando métricas apropriadas para datasets desbalanceados:
+
+* Acurácia
+* F1-score
+* ROC-AUC
+* Relatório de classificação
+* Matriz de confusão
+
+Além disso, são geradas visualizações como:
+
+* Curvas ROC
+* Matrizes de confusão
+* Comparação de métricas entre modelos
+
+Essas análises permitem compreender não apenas **qual modelo performa melhor**, mas também **como e por quê**.
+
+---
+
+## 7️⃣ Função para Previsão em Novos Dados
+
+Por fim, o notebook inclui uma função dedicada à **inferência em novos sinais de vibração**, aplicando automaticamente:
+
+1. Pré-processamento do sinal
+2. Extração de features
+3. Normalização
+4. Predição do estado da máquina
+
+Essa etapa demonstra a **viabilidade prática do modelo em cenários reais**, como sistemas de monitoramento contínuo.
+
+---
+
+## 🧠 Conclusões
+
+Os resultados indicam que a combinação de **processamento de sinais + Machine Learning clássico** é eficaz para detecção de desbalanceamento.
+
+### Principais aprendizados:
+
+* Features espectrais são altamente discriminativas
+* Balanceamento de dados é crítico para desempenho confiável
+* Random Forest apresentou excelente interpretabilidade
+
+Este projeto demonstra uma abordagem **robusta, explicável e aplicável industrialmente**, alinhada aos princípios da **Manutenção Preditiva e Indústria 4.0**.
